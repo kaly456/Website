@@ -1,0 +1,113 @@
+npx create-react-app ecommerce-website
+cd ecommerce-website
+npm install react-router-dom axios
+mkdir backend
+cd backend
+npm init -y
+npm install express mongoose body-parser
+const mongoose = require('mongoose');
+
+const productSchema = new mongoose.Schema({
+  name: String,
+  price: Number,
+  image: String,
+  category: String,
+  type: String
+});
+
+module.exports = mongoose.model('Product', productSchema);
+const mongoose = require('mongoose');
+
+const orderSchema = new mongoose.Schema({
+  customerName: String,
+  customerEmail: String,
+  orderDate: Date,
+  products: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Product' }]
+});
+
+module.exports = mongoose.model('Order', orderSchema);
+const mongoose = require('mongoose');
+
+const feedbackSchema = new mongoose.Schema({
+  customerName: String,
+  customerEmail: String,
+  feedbackText: String,
+  sentiment: String
+});
+
+module.exports = mongoose.model('Feedback', feedbackSchema);
+const express = require('express');
+const app = express();
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+
+mongoose.connect('mongodb://localhost/ecommerce-website', { useNewUrlParser: true, useUnifiedTopology: true });
+
+app.use(bodyParser.json());
+
+const productController = require('./controllers/ProductController');
+const orderController = require('./controllers/OrderController');
+const feedbackController = require('./controllers/FeedbackController');
+
+app.get('/api/products', productController.getProducts);
+app.get('/api/products/:category', productController.getProductsByCategory);
+app.post('/api/orders', orderController.createOrder);
+app.post('/api/feedback', feedbackController.createFeedback);
+
+app.listen(3001, () => {
+  console.log('Server started on port 3001');
+});
+const Product = require('../models/Product');
+
+exports.getProducts = async (req, res) => {
+  const products = await Product.find();
+  res.json(products);
+};
+
+exports.getProductsByCategory = async (req, res) => {
+  const category = req.params.category;
+  const products = await Product.find({ category });
+  res.json(products);
+};
+const Order = require('../models/Order');
+
+exports.createOrder = async (req, res) => {
+  const order = new Order(req.body);
+  await order.save();
+  res.json(order);
+};
+const Feedback = require('../models/Feedback');
+const { sentimentAnalysis } = require('../utils/openai');
+
+exports.createFeedback = async (req, res) => {
+  const feedback = new Feedback(req.body);
+  const sentiment = await sentimentAnalysis(feedback.feedbackText);
+  feedback.sentiment = sentiment;
+  await feedback.save();
+  res.json(feedback);
+};
+import React from 'react';
+
+const ProductCard = ({ product }) => {
+  return (
+    <div>
+      <img src={product.image} alt={product.name} />
+      <h2>{product.name}</h2>
+      <p>Price: ${product.price}</p>
+      <button>Add to Cart</button>
+    </div>
+  );
+};
+
+export default ProductCard;
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import ProductCard from './ProductCard';
+
+const ProductList = () => {
+  const [products, setProducts] = useState([]);
+  const [category, setCategory] = useState('');
+
+  useEffect(() => {
+    axios.get(`/api/products${category ? `/${category}` : ''}`)
+      .then(response => {
